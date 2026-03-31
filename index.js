@@ -42,10 +42,22 @@ function sendMessage(sender, text) {
 
 // --- Webhook verify
 app.get("/webhook", (req, res) => {
-  if (req.query["hub.verify_token"] === VERIFY_TOKEN) {
-    res.send(req.query["hub.challenge"]);
+  const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
+
+  const mode = req.query["hub.mode"];
+  const token = req.query["hub.verify_token"];
+  const challenge = req.query["hub.challenge"];
+
+  console.log("MODE:", mode);
+  console.log("TOKEN:", token);
+  console.log("VERIFY_TOKEN:", VERIFY_TOKEN);
+
+  if (mode === "subscribe" && token === VERIFY_TOKEN) {
+    console.log("WEBHOOK VERIFIED");
+    return res.status(200).send(challenge);
   } else {
-    res.send("Error verify");
+    console.log("VERIFY FAILED");
+    return res.status(403).send("Error verify");
   }
 });
 
