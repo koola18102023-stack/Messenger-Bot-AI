@@ -1,7 +1,31 @@
 const express = require("express");
 const fetch = require("node-fetch");
 
-const app = express();
+const app = express();const sessions = new Map();
+
+function getSession(userId) {
+  if (!sessions.has(userId)) {
+    sessions.set(userId, {
+      history: [],
+      need: null,
+      budget: null
+    });
+  }
+  return sessions.get(userId);
+}
+function extractInfo(text, session) {
+  const t = text.toLowerCase();
+
+  if (!session.need) {
+    if (t.includes("ở")) session.need = "mua ở";
+    if (t.includes("đầu tư")) session.need = "đầu tư";
+  }
+
+  const match = t.match(/\d+/);
+  if (match && !session.budget) {
+    session.budget = parseInt(match[0]) * 1000000000;
+  }
+}
 app.use(express.json());
 
 // Biến môi trường
@@ -71,8 +95,12 @@ app.post("/webhook", async (req, res) => {
         if (event.message && event.message.text) {
           const sender = event.sender.id;
           const userText = event.message.text;
-          const reply = await handleAI(sender, userText);
-          sendMessage(sender, reply);
+          const reply = await handleAI(sender, text);
+
+// giả lập người thật (delay)
+await new Promise(r => setTimeout(r, 1000 + Math.random()*1000));
+
+await sendMessage(sender, reply + "\n\nAnh/chị tiện đi xem thực tế lúc nào để em sắp lịch ạ?");
         }
       }
     }
@@ -85,35 +113,51 @@ app.post("/webhook", async (req, res) => {
 
 // --- Logic AI
 async function handleAI(userId, userText) {
-  try {
-    const prompt = `
-Bạn là Ngọc An – chuyên viên tư vấn bất động sản Danh Khôi.
-Mục tiêu: hỏi nhu cầu (mua ở hay đầu tư), hỏi tài chính, gợi ý sản phẩm phù hợp, chốt lịch xem nhà.
-Quy tắc: trả lời 2-3 câu ngắn, luôn hỏi lại khách, giọng thân thiện, chuyên nghiệp.
-Sản phẩm: Icon Central căn hộ cao cấp giá 4-8 tỷ, Nhà phố Dĩ An 5-7 tỷ, Đất nền Dĩ An từ 3 tỷ.
+  const session = getSession(userId);
+
+  extractInfo(userText, session);
+
+  session.history.push({ role: "user", content: userText });
+  if (session.history.length > 6) session.history.shift();
+
+  const systemPrompt = `
+Bạn là Ngọc An – sale BĐS, nói chuyện như người thật.
+
+- Trả lời ngắn 2-3 câu
+- Có "dạ", "em", "anh/chị"
+- Luôn hỏi lại 1 câu
+
+Thông tin khách:
+- Nhu cầu: ${session.need || "chưa rõ"}
+- Tài chính: ${session.budget ? session.budget / 1000000000 + " tỷ" : "chưa rõ"}
+
+Chiến lược:
+- Trả lời đúng câu hỏi
+- Sau đó kéo về BĐS
+- Chốt lịch xem nhà
 `;
 
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: prompt },
-          { role: "user", content: userText }
-        ]
-      })
-    });
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        ...session.history
+      ]
+    })
+  });
 
-    const data = await res.json();
-    return data.choices?.[0]?.message?.content || "Xin lỗi, tôi chưa hiểu câu hỏi của bạn.";
-  } catch (err) {
-    console.error("OpenAI API error:", err);
-    return "Xin lỗi, tôi gặp sự cố. Bạn thử lại sau nhé!";
-  }
+  const data = await res.json();
+  const reply = data.choices[0].message.content;
+
+  session.history.push({ role: "assistant", content: reply });
+
+  return reply;
 }
 
 // Heartbeat log
