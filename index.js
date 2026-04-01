@@ -4,27 +4,26 @@ const fetch = require("node-fetch");
 const app = express();
 const sessions = new Map();
 
-// Cấu hình PORT cho Railway (Ưu tiên process.env.PORT)
-const PORT = process.env.PORT || 3000; 
-
-
-function getSession(userId) {
-  if (!sessions.has(userId)) {
-    sessions.set(userId, { history: [], need: null, budget: null });
-  }
-  return sessions.get(userId);
-}
+// CẤU HÌNH PORT TỰ ĐỘNG CHO RAILWAY
+const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-// 1. THÊM ĐƯỜNG DẪN ROOT ĐỂ RAILWAY KIỂM TRA (HEALTH CHECK)
+// QUAN TRỌNG: PHẢN HỒI TỨC THÌ CHO RAILWAY HEALTH CHECK
 app.get("/", (req, res) => {
-  res.status(200).send("Bot Icon Central đang hoạt động tốt!");
+  res.status(200).send("OK");
+});
+
+app.get("/webhook", (req, res) => {
+  const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
+  if (req.query["hub.mode"] === "subscribe" && req.query["hub.verify_token"] === VERIFY_TOKEN) {
+    return res.status(200).send(req.query["hub.challenge"]);
+  }
+  res.status(200).send("Webhook endpoint is active");
 });
 
 // Lấy thông tin từ Railway Variables
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
-const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 const API_KEY = process.env.OPENAI_API_KEY; 
 const BASE_URL = process.env.MANUS_API_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai";
 
@@ -54,15 +53,6 @@ function sendMessage(sender, text) {
   processQueue();
 }
 
-// Webhook xác thực với Facebook
-app.get("/webhook", (req, res) => {
-  if (req.query["hub.mode"] === "subscribe" && req.query["hub.verify_token"] === VERIFY_TOKEN) {
-    return res.status(200).send(req.query["hub.challenge"]);
-  }
-  res.status(403).send("Lỗi xác thực Webhook");
-});
-
-// Nhận tin nhắn từ khách hàng
 app.post("/webhook", async (req, res) => {
   const entries = req.body.entry || [];
   for (const entry of entries) {
@@ -71,7 +61,6 @@ app.post("/webhook", async (req, res) => {
       if (event.message && event.message.text) {
         const sender = event.sender.id;
         const userText = event.message.text;
-        
         const reply = await handleAI(sender, userText);
         await new Promise(r => setTimeout(r, 1000 + Math.random()*1000));
         await sendMessage(sender, reply + "\n\nAnh/chị tiện đi xem thực tế lúc nào để em sắp lịch ạ?");
@@ -82,32 +71,25 @@ app.post("/webhook", async (req, res) => {
 });
 
 async function handleAI(userId, userText) {
-  const session = getSession(userId);
+  const session = (id) => {
+    if (!sessions.has(id)) sessions.set(id, { history: [] });
+    return sessions.get(id);
+  }(userId);
+  
   session.history.push({ role: "user", content: userText });
   if (session.history.length > 6) session.history.shift();
 
-  const systemPrompt = `Bạn là Ngọc An – sale BĐS chuyên nghiệp, nói chuyện như người thật. 
-- Trả lời ngắn gọn 2-3 câu. 
-- Luôn dùng "dạ", "em", "anh/chị". 
-- Không chào hỏi lặp lại nếu đã chào rồi. 
-- Trả lời thẳng vào vấn đề khách hỏi.`;
+  const systemPrompt = `Bạn là Ngọc An – sale BĐS chuyên nghiệp. Trả lời ngắn gọn 2-3 câu. Luôn dùng "dạ", "em", "anh/chị". Trả lời thẳng vào vấn đề khách hỏi về Icon Central.`;
 
   try {
     const res = await fetch(`${BASE_URL}/chat/completions`, {
       method: "POST",
-      headers: {
-        "Authorization": `Bearer ${API_KEY}`,
-        "Content-Type": "application/json"
-      },
+      headers: { "Authorization": `Bearer ${API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "gemini-1.5-flash",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...session.history
-        ]
+        messages: [{ role: "system", content: systemPrompt }, ...session.history]
       })
     });
-
     const data = await res.json();
     if (data.choices && data.choices[0]) {
       const reply = data.choices[0].message.content;
@@ -116,13 +98,11 @@ async function handleAI(userId, userText) {
     }
     return "Dạ, em đang kiểm tra lại thông tin dự án, anh/chị đợi em một chút nhé!";
   } catch (err) {
-    console.error("Lỗi gọi AI:", err);
     return "Dạ, hiện tại hệ thống đang bận, anh/chị vui lòng để lại số điện thoại em sẽ gọi lại ngay ạ!";
   }
 }
 
-// Lắng nghe trên 0.0.0.0 để Railway có thể truy cập từ bên ngoài
+// LẮNG NGHE TRÊN CỔNG DO RAILWAY CẤP PHÁT
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Bot đang chạy ổn định tại cổng ${PORT}`);
+  console.log(`Bot khởi động thành công trên cổng: ${PORT}`);
 });
-
