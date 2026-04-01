@@ -117,5 +117,9 @@ async function handleAI(userId, userText) {
     return "Dạ, hiện tại hệ thống đang bận, anh/chị vui lòng để lại số điện thoại em sẽ gọi lại ngay ạ!";
   }
 }
+// Thêm đoạn này để Railway kiểm tra trạng thái bot
+app.get("/", (req, res) => {
+  res.send("Bot Icon Central đang hoạt động tốt!");
+});
 
 app.listen(process.env.PORT || 3000, "0.0.0.0", () => console.log(`Bot đang chạy tại cổng ${process.env.PORT || 3000}`));
