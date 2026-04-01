@@ -5,7 +5,7 @@ const app = express();
 const sessions = new Map();
 
 // CẤU HÌNH PORT TỰ ĐỘNG CHO RAILWAY (QUAN TRỌNG)
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 app.use(express.json());
 
