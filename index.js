@@ -4,6 +4,9 @@ const fetch = require("node-fetch");
 const app = express();
 const sessions = new Map();
 
+// Cấu hình PORT cho Railway (Ưu tiên process.env.PORT)
+const PORT = process.env.PORT || 8080;
+
 function getSession(userId) {
   if (!sessions.has(userId)) {
     sessions.set(userId, { history: [], need: null, budget: null });
@@ -13,12 +16,16 @@ function getSession(userId) {
 
 app.use(express.json());
 
+// 1. THÊM ĐƯỜNG DẪN ROOT ĐỂ RAILWAY KIỂM TRA (HEALTH CHECK)
+app.get("/", (req, res) => {
+  res.status(200).send("Bot Icon Central đang hoạt động tốt!");
+});
+
 // Lấy thông tin từ Railway Variables
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 const API_KEY = process.env.OPENAI_API_KEY; 
 const BASE_URL = process.env.MANUS_API_BASE_URL || "https://generativelanguage.googleapis.com/v1beta/openai";
-const PORT = process.env.PORT || 3000;
 
 const messageQueue = [];
 let sending = false;
@@ -31,7 +38,7 @@ async function processQueue( ) {
     await fetch(`https://graph.facebook.com/v18.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ recipient: { id: sender }, message: { text } } )
+      body: JSON.stringify({ recipient: { id: sender }, message: { text } }  )
     });
   } catch (err) {
     console.error("Lỗi gửi tin nhắn Facebook:", err);
@@ -64,13 +71,8 @@ app.post("/webhook", async (req, res) => {
         const sender = event.sender.id;
         const userText = event.message.text;
         
-        // Gọi AI xử lý câu trả lời
         const reply = await handleAI(sender, userText);
-        
-        // Giả lập thời gian gõ phím (delay)
         await new Promise(r => setTimeout(r, 1000 + Math.random()*1000));
-        
-        // Gửi câu trả lời trực tiếp vào Messenger
         await sendMessage(sender, reply + "\n\nAnh/chị tiện đi xem thực tế lúc nào để em sắp lịch ạ?");
       }
     }
@@ -97,7 +99,7 @@ async function handleAI(userId, userText) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        model: "gemini-1.5-flash", // Dùng model nhanh nhất và miễn phí
+        model: "gemini-1.5-flash",
         messages: [
           { role: "system", content: systemPrompt },
           ...session.history
@@ -117,9 +119,8 @@ async function handleAI(userId, userText) {
     return "Dạ, hiện tại hệ thống đang bận, anh/chị vui lòng để lại số điện thoại em sẽ gọi lại ngay ạ!";
   }
 }
-// Thêm đoạn này để Railway kiểm tra trạng thái bot
-app.get("/", (req, res) => {
-  res.send("Bot Icon Central đang hoạt động tốt!");
-});
 
-app.listen(process.env.PORT || 3000, "0.0.0.0", () => console.log(`Bot đang chạy tại cổng ${process.env.PORT || 3000}`));
+// Lắng nghe trên 0.0.0.0 để Railway có thể truy cập từ bên ngoài
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Bot đang chạy ổn định tại cổng ${PORT}`);
+});
