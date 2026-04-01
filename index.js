@@ -1,7 +1,8 @@
 const express = require("express");
 const fetch = require("node-fetch");
 
-const app = express();const sessions = new Map();
+const app = express();
+const sessions = new Map();
 
 function getSession(userId) {
   if (!sessions.has(userId)) {
@@ -13,6 +14,7 @@ function getSession(userId) {
   }
   return sessions.get(userId);
 }
+
 function extractInfo(text, session) {
   const t = text.toLowerCase();
 
@@ -26,19 +28,21 @@ function extractInfo(text, session) {
     session.budget = parseInt(match[0]) * 1000000000;
   }
 }
+
 app.use(express.json());
 
 // Biến môi trường
 const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const MANUS_API_BASE_URL = process.env.MANUS_API_BASE_URL || "https://api.manus.im/v1"; // Thêm biến môi trường cho Manus AI base URL
 const PORT = process.env.PORT || 3000;
 
 // Queue gửi tin nhắn để tránh crash
 const messageQueue = [];
 let sending = false;
 
-async function processQueue() {
+async function processQueue( ) {
   if (sending || messageQueue.length === 0) return;
   sending = true;
 
@@ -47,7 +51,7 @@ async function processQueue() {
     await fetch(`https://graph.facebook.com/v18.0/me/messages?access_token=${PAGE_ACCESS_TOKEN}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ recipient: { id: sender }, message: { text } })
+      body: JSON.stringify({ recipient: { id: sender }, message: { text } } )
     });
     console.log("Message sent to", sender);
   } catch (err) {
@@ -66,8 +70,6 @@ function sendMessage(sender, text) {
 
 // --- Webhook verify
 app.get("/webhook", (req, res) => {
-  const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
-
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
   const challenge = req.query["hub.challenge"];
@@ -95,12 +97,12 @@ app.post("/webhook", async (req, res) => {
         if (event.message && event.message.text) {
           const sender = event.sender.id;
           const userText = event.message.text;
-          const reply = await handleAI(sender, text);
+          const reply = await handleAI(sender, userText); // Sửa lỗi: truyền userText thay vì text
 
-// giả lập người thật (delay)
-await new Promise(r => setTimeout(r, 1000 + Math.random()*1000));
+          // giả lập người thật (delay)
+          await new Promise(r => setTimeout(r, 1000 + Math.random()*1000));
 
-await sendMessage(sender, reply + "\n\nAnh/chị tiện đi xem thực tế lúc nào để em sắp lịch ạ?");
+          await sendMessage(sender, reply + "\n\nAnh/chị tiện đi xem thực tế lúc nào để em sắp lịch ạ?");
         }
       }
     }
@@ -137,14 +139,14 @@ Chiến lược:
 - Chốt lịch xem nhà
 `;
 
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+  const res = await fetch(`${MANUS_API_BASE_URL}/chat/completions`, { // Thay đổi URL API
     method: "POST",
     headers: {
-      "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+      "Authorization": `Bearer ${OPENAI_API_KEY}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      model: "gpt-4o-mini",
+      model: "gpt-4o-mini", // Có thể thay đổi model nếu Manus AI hỗ trợ các model khác
       messages: [
         { role: "system", content: systemPrompt },
         ...session.history
