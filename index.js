@@ -118,4 +118,4 @@ async function handleAI(userId, userText) {
   }
 }
 
-app.listen(process.env.PORT || 3000, "0.0.0.0", () => console.log(`Bot đang chạy tại cổng ${process.env.PORT || 3000}`));`
+app.listen(process.env.PORT || 3000, "0.0.0.0", () => console.log(`Bot đang chạy tại cổng ${process.env.PORT || 3000}`));
