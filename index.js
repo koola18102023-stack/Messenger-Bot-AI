@@ -5,7 +5,8 @@ const app = express();
 const sessions = new Map();
 
 // Cấu hình PORT cho Railway (Ưu tiên process.env.PORT)
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 3000; 
+
 
 function getSession(userId) {
   if (!sessions.has(userId)) {
@@ -124,3 +125,4 @@ async function handleAI(userId, userText) {
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Bot đang chạy ổn định tại cổng ${PORT}`);
 });
+
