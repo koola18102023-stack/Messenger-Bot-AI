@@ -84,9 +84,13 @@ async function handleAI(userId, userText) {
         "Content-Type": "application/json" 
       },
       body: JSON.stringify({
-        model: "gemini-1.5-flash",
-        messages: [{ role: "system", content: systemPrompt }, ...session.history]
-      })
+    contents: [
+      {
+        role: "user",
+        parts: [{ text: `${systemPrompt}\n\n${userText}` }]
+      }
+    ]
+  })
     });
     
     const data = await res.json();
