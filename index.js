@@ -4,7 +4,9 @@ const fetch = require("node-fetch");
 const app = express();
 const sessions = new Map();
 
-const PORT = 3001;
+const PORT = process.env.PORT || 3000;
+
+console.log("PORT ENV:", process.env.PORT);
 
 app.use(express.json());
 
@@ -116,4 +118,12 @@ setInterval(() => {
 
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`>>> BOT ĐÃ SẴN SÀNG TRÊN CỔNG: ${PORT}`);
+});
+
+process.on("uncaughtException", (err) => {
+  console.error("UNCAUGHT EXCEPTION:", err);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error("UNHANDLED REJECTION:", err);
 });
